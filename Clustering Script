@@ -1,1 +1,89 @@
+import re
+import nltk
+import pandas as pd
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Conv1D, GlobalMaxPooling1D, Dense, Dropout
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
+# Read data
+
+data = pd.read_csv("Phone Transcript Data.csv", encoding="latin1")
+# Preprocessing of text
+
+def preprocessed_text(text):
+    if isinstance(text, str):
+        # Convert text to lowercase
+        text = text.lower()
+
+        # Remove special characters and digits
+        text = re.sub(r"[^a-zA-Z\s]", "", text)
+
+        # Return preprocessed text
+        return text
+    else:
+        # Return empty string for non-string values
+        return ""
+
+    # Tokenization
+    tokens = nltk.word_tokenize(text)
+
+    # Remove stopwords
+    stop_words = set(stopwords.words("english"))
+    tokens = [token for token in tokens if token not in stop_words]
+
+    # Stemming
+    stemmer = PorterStemmer()
+    tokens = [stemmer.stem(token) for token in tokens]
+
+    # Join tokens back into a single string
+    preprocessed_text = " ".join(tokens)
+
+    return preprocessed_text
+
+# Tata column
+data.columns
+
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
+data = data.rename(columns={'CASEDESCRIPTIONTEXT':'Comment'})
+
+# Preprocess the text column
+data["preprocessed_text"] = data["Comment"].apply(preprocessed_text)
+comments = data['preprocessed_text'].tolist()
+# Convert comments to TF-IDF vectors
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(comments)
+# Determine the optimal number of clusters using silhouette score
+silhouette_scores = []
+for n_clusters in range(2, 8):
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0)
+    cluster_labels = kmeans.fit_predict(X)
+    silhouette_avg = silhouette_score(X, cluster_labels)
+    silhouette_scores.append((n_clusters, silhouette_avg))
+
+best_num_clusters = max(silhouette_scores, key=lambda x: x[1])[0]
+print(f"For {n_clusters} clusters, silhouette score: {silhouette_avg:.3f}")
+# Perform K-Means clustering with the optimal number of clusters
+kmeans = KMeans(n_clusters=best_num_clusters, random_state=0)
+cluster_labels = kmeans.fit_predict(X)
+# Add cluster labels to the DataFrame
+data['Cluster'] = cluster_labels
+# Display the DataFrame with cluster labels
+print(data)
+# Export the DataFrame to a new CSV file
+output_csv_path = "/content/output_clusters.csv"  # Change the output path as needed
+data.to_csv(output_csv_path, index=False)
+
+print(f"Clustered comments exported to {output_csv_path}")
